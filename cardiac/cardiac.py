@@ -145,6 +145,18 @@ class CardiacMemory(Memory):
         if orig < 0:
             return '-'+data[-length:]
         return data[-length:]
+    def opcode_1(self, data):
+        """ Clear and Add Operation """
+        self.acc = self.get_memint(data)
+    def opcode_2(self, data):
+        """ Add Operation """
+        self.acc += self.get_memint(data)
+    def opcode_6(self, data):
+        """ Store operation """
+        self.set_mem(data, self.acc)
+    def opcode_7(self, data):
+        """ Subtract Operation """
+        self.acc -= self.get_memint(data)
 
 class CardiacIO(IO):
     """
@@ -184,6 +196,12 @@ class CardiacIO(IO):
             return raw_input('INP: ')[:3]
     def stdout(self, data):
         self.output.append(data)
+    def opcode_0(self, data):
+        """ INPUT Operation """
+        self.set_mem(data, self.get_input())
+    def opcode_5(self, data):
+        """ Output operation """
+        self.stdout(self.get_mem(data))
 
 class CPU(object):
     """
@@ -267,15 +285,6 @@ class Cardiac(CPU, CardiacMemory, CardiacIO):
     """
     This class contains the actual opcodes needed to run Cardiac machine code.
     """
-    def opcode_0(self, data):
-        """ INPUT Operation """
-        self.set_mem(data, self.get_input())
-    def opcode_1(self, data):
-        """ Clear and Add Operation """
-        self.acc = self.get_memint(data)
-    def opcode_2(self, data):
-        """ Add Operation """
-        self.acc += self.get_memint(data)
     def opcode_3(self, data):
         """ Test Accumulator contents Operation """
         if self.acc < 0:
@@ -287,15 +296,6 @@ class Cardiac(CPU, CardiacMemory, CardiacIO):
             self.acc = (self.acc * 10) % 10000
         for i in range(0,y):
             self.acc = int(math.floor(self.acc / 10))
-    def opcode_5(self, data):
-        """ Output operation """
-        self.stdout(self.get_mem(data))
-    def opcode_6(self, data):
-        """ Store operation """
-        self.set_mem(data, self.acc)
-    def opcode_7(self, data):
-        """ Subtract Operation """
-        self.acc -= self.get_memint(data)
     def opcode_8(self, data):
         """ Unconditional Jump operation """
         self.pc = data
