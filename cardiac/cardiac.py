@@ -2,7 +2,22 @@ from cmd import Cmd
 from cStringIO import StringIO
 import math, shlex
 
+class ConfigurationError(Exception):
+    pass
+
+class CPUException(Exception):
+    pass
+
+class MemoryOutOfRange(CPUException):
+    pass
+
+class InvalidOperation(CPUException):
+    pass
+
 class Asmembler(Cmd):
+    """
+    Please do not use this class yet, it is not complete!
+    """
     op_map = {
         'inp': 0,
         'cla': 1,
@@ -66,7 +81,27 @@ class Memory(object):
         a reusable function to grab a integer from memory.  This method could be
         overridden if say a new memory type was implemented, say an mmap one.
         """
-        return int(self.mem[data])
+        return int(self.get_mem(data))
+    def chk_addr(self, addr):
+        """
+        This method keeps things DRY and clean, so we don't need to trap IndexError
+        exceptions and the like.
+        """
+        addr = int(addr) # Sanitize before use.
+        if addr < 0 or addr > len(self.mem)-1:
+            raise MemoryOutOfRange('Memory out of Range: %s' % addr)
+    def get_mem(self, data):
+        """
+        This method controls memory access to obtain a single address.
+        """
+        self.chk_addr(data)
+        return self.mem[data]
+    def set_mem(self, addr, data):
+        """
+        This method controls memory writr access to a single address.
+        """
+        self.chk_addr(addr)
+        self.mem[addr] = self.pad(data)
     def pad(self, data, length=3):
         """
         This function pads either an integer or a number in string format with
@@ -74,7 +109,7 @@ class Memory(object):
         """
         orig = int(data)
         padding = '0'*length
-        data = '%s%s' % (padding, abs(data))
+        data = '%s%s' % (padding, abs(orig))
         if orig < 0:
             return '-'+data[-length:]
         return data[-length:]
@@ -128,12 +163,12 @@ class CPU(object):
         try:
             self.init_mem()
         except AttributeError:
-            raise NotImplementedError('You need to Mixin a memory-enabled class.')
+            raise ConfigurationError('You need to Mixin a memory-enabled class.')
         try:
             self.init_reader()
             self.init_output()
         except AttributeError:
-            raise NotImplementedError('You need to Mixin a IO-enabled class.')
+            raise ConfigurationError('You need to Mixin a IO-enabled class.')
     def reset(self):
         """
         This method resets the CPU's registers to their defaults.
@@ -154,12 +189,15 @@ class CPU(object):
         self.__opcodes = {}
         classes = [self.__class__] #: This holds all the classes and base classes.
         while classes:
-            cls = classes.pop() # Pop the classes stack and being
+            cls = classes.pop() # Pop the classes stack
             if cls.__bases__: # Does this class have any base classes?
                 classes = classes + list(cls.__bases__)
             for name in dir(cls): # Lets iterate through the names.
                 if name[:7] == 'opcode_': # We only want opcodes here.
-                    opcode = int(name[7:])
+                    try:
+                        opcode = int(name[7:])
+                    except ValueError:
+                        raise ConfigurationError('Opcodes must be numeric, invalid opcode: %s' % name[7:])
                     self.__opcodes.update({opcode:getattr(self, 'opcode_%s' % opcode)})
     def fetch(self):
         """
@@ -179,10 +217,27 @@ class CPU(object):
         """
         self.fetch()
         opcode, data = int(math.floor(self.ir / 100)), self.ir % 100
-        self.__opcodes[opcode](data)
+        if self.__opcodes.has_key(opcode):
+            self.__opcodes[opcode](data)
+        else:
+            raise InvalidOperation('Invalid OpCode detected: %s' % opcode)
+    def run(self, pc=None):
+        """ Runs code in memory until halt/reset opcode. """
+        if pc:
+            self.pc = pc
+        self.running = True
+        while self.running:
+            self.process()
+        print "Output:\n%s" % self.format_output()
+        self.init_output()
+
+class Cardiac(CPU, Memory, IO):
+    """
+    This class contains the actual opcodes needed to run Cardiac machine code.
+    """
     def opcode_0(self, data):
         """ INPUT Operation """
-        self.mem[data] = self.get_input()
+        self.set_mem(data, self.get_input())
     def opcode_1(self, data):
         """ Clear and Add Operation """
         self.acc = self.get_memint(data)
@@ -202,10 +257,10 @@ class CPU(object):
             self.acc = int(math.floor(self.acc / 10))
     def opcode_5(self, data):
         """ Output operation """
-        self.stdout(self.mem[data])
+        self.stdout(self.get_mem(data))
     def opcode_6(self, data):
         """ Store operation """
-        self.mem[data] = self.pad(self.acc)
+        self.set_mem(data, self.acc)
     def opcode_7(self, data):
         """ Subtract Operation """
         self.acc -= self.get_memint(data)
@@ -215,24 +270,22 @@ class CPU(object):
     def opcode_9(self, data):
         """ Halt and Reset operation """
         self.reset()
-    def run(self, pc=None):
-        """ Runs code in memory until halt/reset opcode. """
-        if pc:
-            self.pc = pc
-        self.running = True
-        while self.running:
-            self.process()
-        print "Output:\n%s" % self.format_output()
-        self.init_output()
 
-class Cardiac(CPU, Memory, IO):
-    pass
+def main():
+    try:
+        c = Cardiac()
+        c.read_deck('deck1.txt')
+        c.run()
+    except ConfigurationError, e:
+        print "Configuration Error: %s" % e
+    except CPUException, e:
+        # Here we trap all exceptions which can be triggered by user code, and display an error to the end-user.
+        print "IR: %s\nPC: %s\nACC: %s" % (c.ir, c.pc, c.acc)
+        print str(e)
+    except:
+        # For every other exceptions, which are normally Python related, we display it.
+        print "IR: %s\nPC: %s\nOutput: %s\n" % (c.ir, c.pc, c.format_output())
+        raise    
 
 if __name__ == '__main__':
-    c = Cardiac()
-    c.read_deck('deck1.txt')
-    try:
-        c.run()
-    except:
-        print "IR: %s\nPC: %s\nOutput: %s\n" % (c.ir, c.pc, c.format_output())
-        raise
+    main()
