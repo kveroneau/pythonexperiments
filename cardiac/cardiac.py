@@ -67,6 +67,38 @@ class Asmembler(Cmd):
 
 class Memory(object):
     """
+    This is a base class to create a memory device, it is a basic skeleton.
+    """
+    def init_mem(self):
+        raise ConfigurationError('Please override the base class methods.')
+    def chk_addr(self, addr):
+        # Here will will always raise memory out of range.
+        raise MemoryOutOfRange('Memory out of Range: %s' % addr)
+    def get_mem(self, data):
+        self.chk_addr(data) # Use a sane default, as this enables super() usage.
+    def get_memint(self, data):
+        # Let's use a sane default.
+        return int(self.get_mem(data))
+    def set_mem(self, addr, data):
+        self.chk_addr(addr) # Use a sane default, as this enables super() usage.
+
+class IO(object):
+    """
+    This is the base class to create a virtual IO device, it is a basic skeleton.
+    """
+    def init_input(self):
+        raise ConfigurationError('Please override the base class methods.')
+    def init_output(self):
+        raise ConfigurationError('Please override the base class methods.')
+    def format_output(self):
+        return ''
+    def get_input(self):
+        return ''
+    def stdout(self, data):
+        pass
+
+class CardiacMemory(Memory):
+    """
     This class controls the virtual memory space of the simulator.
     """
     def init_mem(self):
@@ -81,7 +113,7 @@ class Memory(object):
         a reusable function to grab a integer from memory.  This method could be
         overridden if say a new memory type was implemented, say an mmap one.
         """
-        return int(self.get_mem(data))
+        return super(CardiacMemory, self).get_memint(data) # Because why not?
     def chk_addr(self, addr):
         """
         This method keeps things DRY and clean, so we don't need to trap IndexError
@@ -94,13 +126,13 @@ class Memory(object):
         """
         This method controls memory access to obtain a single address.
         """
-        self.chk_addr(data)
+        super(CardiacMemory, self).get_mem(data) # Because why not?
         return self.mem[data]
     def set_mem(self, addr, data):
         """
         This method controls memory writr access to a single address.
         """
-        self.chk_addr(addr)
+        super(CardiacMemory, self).set_mem(addr, data) # Because why not?
         self.mem[addr] = self.pad(data)
     def pad(self, data, length=3):
         """
@@ -114,12 +146,12 @@ class Memory(object):
             return '-'+data[-length:]
         return data[-length:]
 
-class IO(object):
+class CardiacIO(IO):
     """
     This class controls the virtual I/O of the simulator.
     To enable alternate methods of input and output, swap this.
     """
-    def init_reader(self):
+    def init_input(self):
         """
         This method initializes the input reader.
         """
@@ -165,7 +197,7 @@ class CPU(object):
         except AttributeError:
             raise ConfigurationError('You need to Mixin a memory-enabled class.')
         try:
-            self.init_reader()
+            self.init_input()
             self.init_output()
         except AttributeError:
             raise ConfigurationError('You need to Mixin a IO-enabled class.')
@@ -231,7 +263,7 @@ class CPU(object):
         print "Output:\n%s" % self.format_output()
         self.init_output()
 
-class Cardiac(CPU, Memory, IO):
+class Cardiac(CPU, CardiacMemory, CardiacIO):
     """
     This class contains the actual opcodes needed to run Cardiac machine code.
     """
@@ -285,7 +317,7 @@ def main():
     except:
         # For every other exceptions, which are normally Python related, we display it.
         print "IR: %s\nPC: %s\nOutput: %s\n" % (c.ir, c.pc, c.format_output())
-        raise    
+        raise
 
 if __name__ == '__main__':
     main()
