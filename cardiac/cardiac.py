@@ -298,6 +298,7 @@ class Cardiac(CPU, CardiacMemory, CardiacIO):
             self.acc = int(math.floor(self.acc / 10))
     def opcode_8(self, data):
         """ Unconditional Jump operation """
+        self.set_mem(99, self.pc+800) # This is used for a return function.
         self.pc = data
     def opcode_9(self, data):
         """ Halt and Reset operation """
