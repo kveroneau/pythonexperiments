@@ -30,6 +30,7 @@ class Assembler(Cmd):
         self.var_map = {} #: This is used to keep track of variables.
         self.labels = {} #: Stores the label names, and where they point to.
         self.buffer = StringIO() #: This is our buffer where we will store the CARDIAC deck
+        self.size = 0
     def emptyline(self):
         """ This is requried due to how the Python Cmd module works... """
         pass
@@ -51,17 +52,24 @@ class Assembler(Cmd):
         if self.addr:
             self.write_cards('0%s' % self.addr)
             self.addr +=1
+        self.size +=1
     def do_exit(self, args):
         return True
     def do_bootstrap(self, args):
         """ Places some basic bootstrap code in. """
-        if args == '':
-            self.addr = 10 #: A sane default used in existing Cardiac decks.
-        else:
-            self.addr = int(args)
-        self.start = self.addr #: Updated all required address variables.
+        self.addr = 10
+        self.start = self.addr #: Updates all required address variables.
         self.write_cards('002', '800')
-        self.pc = self.start #: Sets up our program counter.
+        self.pc = self.start
+    def do_bootloader(self, args):
+        """ Places some basic bootstrap code in. """
+        self.write_cards('002', '800') 
+        addr = 89 #: This is the start address of the bootloader code.
+        for card in ('001', '189', '200', '689', '198', '700', '698', '301', '889', 'SIZE'):
+            self.write_cards('0%s' % addr, card)
+            addr+=1
+        self.write_cards('002', '889')
+        self.pc = 1
     def do_end(self, args):
         """ Finalizes your code. """
         for var in self.var_map:
@@ -76,6 +84,9 @@ class Assembler(Cmd):
         for card in self.buffer.readlines():
             if card[1] == '*': #: We have a label.
                 card = '%s%s\n' % (card[0], self.labels[card[2:-1]])
+            elif card[:4] == 'SIZE':
+                card = '000'+str(self.size-1)
+                card = '%s\n' % card[-3:]
             buf.write(card)
         buf.seek(0)
         print ''.join(buf.readlines())
