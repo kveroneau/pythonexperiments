@@ -22,4 +22,4 @@ are many examples and explainations in there that can be used.
 Overall, in a learning environment for just teaching Python, this example could be
 very usable as a teaching aid.
 
-Future updates will include both a fully working assembler and compiler.
+Future updates will include both a fully working compiler.

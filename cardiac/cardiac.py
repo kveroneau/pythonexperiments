@@ -1,6 +1,4 @@
-from cmd import Cmd
-from cStringIO import StringIO
-import math, shlex
+import math, sys
 
 class ConfigurationError(Exception):
     pass
@@ -13,57 +11,6 @@ class MemoryOutOfRange(CPUException):
 
 class InvalidOperation(CPUException):
     pass
-
-class Asmembler(Cmd):
-    """
-    Please do not use this class yet, it is not complete!
-    """
-    op_map = {
-        'inp': 0,
-        'cla': 1,
-        'add': 2,
-        'tac': 3,
-        'sft': 4,
-        'out': 5,
-        'sto': 6,
-        'sub': 7,
-        'jmp': 8,
-        'hrs': 9,
-    }
-    padding = '00'
-    def configure(self):
-        self.start = self.addr = None
-        self.var_map = {}
-        self.buffer = StringIO()
-    def emptyline(self):
-        pass
-    def unknown_command(self, line):
-        self.stdout.write('*** Unknown syntax: %s\n'%line)
-    def do_exit(self, args):
-        return True
-    def do_bootstrap(self, args):
-        """ Places some basic bootstrap code in. """
-        if args == '':
-            self.addr = 10
-        else:
-            self.addr = int(args)
-        self.start = self.addr
-        self.stdout.write('002\n800\n')
-    def do_end(self, args):
-        """ Finalizes your code. """
-        if start:
-            self.stdout.write('002\n8%s\n' % self.start)
-    def default(self, line):
-        s = shlex.split(line)
-        op, arg = s[0], '00'
-        if len(s) == 2:
-            arg = self.padding+s[1]
-            arg = arg[-2:]
-        if op in self.op_map:
-            if addr:
-                self.stdout.write('0%s\n' % self.addr)
-                self.addr +=1
-            self.stdout.write('%s%s\n' % (self.op_map[op], arg))
 
 class Memory(object):
     """
@@ -307,7 +254,10 @@ class Cardiac(CPU, CardiacMemory, CardiacIO):
 def main():
     try:
         c = Cardiac()
-        c.read_deck('deck1.txt')
+        deck = 'deck1.txt' #: A sane default.
+        if len(sys.argv) > 1:
+            deck = sys.argv[1]
+        c.read_deck(deck)
         c.run()
     except ConfigurationError, e:
         print "Configuration Error: %s" % e
